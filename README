@@ -1,1 +1,12 @@
 teste
+
+ansible-playbook -i inventor.yml playbook_install_k8s.yml 
+  947  nano inventor.yml 
+  948  ansible-playbook -i inventor.yml master.yml
+  949  ansible-playbook -i inventor.yml workers.yml 
+  950  nano master.yml
+  951  ls
+  952  ansible-playbook -i inventor.yml playbook_install_nfs.yml
+  953  nano playbook_install_nfs_workers.yml
+  954  ansible-playbook -i inventor.yml playbook_install_nfs_workers.yml
+
