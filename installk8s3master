@@ -1,0 +1,183 @@
+---
+- name: Install Kubernetes
+  hosts: "masters, workers"
+  gather_facts: yes
+  become: yes
+  become_method: sudo
+  vars_prompt:
+    - name: "ansible_become_password"
+      prompt: Enter sudo password"
+      private: yes
+
+  tasks:
+    - name: Create containerd config file
+      file:
+        path: "/etc/modules-load.d/containerd.conf"
+        state: "touch"
+
+    - name: Add config for containerd
+      blockinfile:
+        path: "/etc/modules-load.d/containerd.conf"
+        block: |
+              overlay
+              br_netfilter
+
+    - name: modprobe
+      shell: |
+              sudo modprobe overlay
+              sudo modprobe br_netfilter
+  - name: Set system configurations for kubernetes networking
+      file:
+        path: "/etc/sysctl.d/kubernetes.conf"
+        state: "touch"
+
+    - name: Set system configurations for kubernetes networking
+      blockinfile:
+        path: "/etc/sysctl.d/kubernetes.conf"
+        block: |
+               net.bridge.bridge-nf-call-iptables = 1
+               net.bridge.bridge-nf-call-ip6tables = 1
+               net.ipv4.ip_forward = 1
+
+    - name: Apply system configuration
+      command: sudo sysctl --system
+
+    - name: Remove
+      shell: |
+              sudo rm -rf /etc/apt/sources.list.d/kubernetes.list
+              sudo rm -rf /etc/apt/sources.list.d/docker.list
+              sudo rm -rf /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+              sudo rm -rf /etc/apt/keyrings/docker.gpg
+              sudo rm -rf /etc/containerd/config.toml
+
+ - name: Install required packages
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+        update_cache: yes
+
+    - name: Create keyrings directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Download Docker GPG key
+      command: curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker.asc
+
+    - name: Convert Docker GPG key
+      shell: |
+        gpg --dearmor -o /etc/apt/keyrings/docker.gpg /tmp/docker.asc
+      args:
+        creates: /etc/apt/keyrings/docker.gpg
+
+- name: Add Docker repository
+      shell: |
+        echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sou>
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+
+    - name: Install containerd
+      apt:
+        name: containerd.io
+        state: present
+
+    - name: Create containerd configuration directory
+      file:
+        path: /etc/containerd
+        state: directory
+
+ - name: Ensure containerd config directory exists
+      file:
+        path: /etc/containerd
+        state: directory
+        mode: '0755'
+
+    - name: Generate default containerd configuration
+      shell: |
+        containerd config default > /etc/containerd/config.toml
+      args:
+        creates: /etc/containerd/config.toml
+
+    - name: Enable SystemCgroup
+      replace:
+        path: /etc/containerd/config.toml
+        regexp: 'SystemCgroup = false'
+        replace: 'SystemCgroup = true'
+- name: Restart containerd
+      systemd:
+        name: containerd
+        state: restarted
+        enabled: yes
+
+
+    - name: Install Kubernetes (kubeadm, kubelet, kubectl) + prerequisites
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gpg
+        state: present
+        update_cache: yes
+
+    - name: Create keyrings directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+- name: Download Kuberntes key
+      shell: |
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.33/deb/Release.key -o /tmp/kubernetes.key
+      args:
+        creates: /tmp/kubernetes.key
+
+    - name: Convert Kubernetes GPG key
+      command: gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg /tmp/kubernetes.key
+      args:
+        creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+
+
+
+    - name: Install Kubernetes dependencies
+      shell: |
+             sudo mkdir -p -m 755 /etc/apt/keyrings
+
+    - name: Add file to add Kubernetes Source
+      file:
+        path: "/etc/apt/sources.list.d/kubernetes.list"
+        state: "touch"
+
+- name: Add Kubernetes Source
+      blockinfile:
+        path: "/etc/apt/sources.list.d/kubernetes.list"
+        block: |
+              deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg]   https://pkgs.k8s.io/core:/stable:/v1.33/deb/ /
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+
+    - name: Install kubelet, kubeadm, kubectl
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+ - name: Hold Kubernetes packages
+      command: apt-mark hold kubelet kubeadm kubectl
+
+
+    - name: Disable SWAP
+      shell: |
+             sudo swapoff -a
+
